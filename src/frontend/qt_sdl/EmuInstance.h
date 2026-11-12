@@ -28,6 +28,7 @@
 #include "Window.h"
 #include "Config.h"
 #include "SaveManager.h"
+#include "RetroAchievements.h"
 
 const int kMaxWindows = 4;
 
@@ -170,6 +171,8 @@ public:
     QMutex renderLock;
 
 private:
+    friend class RetroAchievements;
+    std::unique_ptr<RetroAchievements> achievements;
     static int lastSep(const std::string& path);
     std::string getAssetPath(bool gba, const std::string& configpath, const std::string& ext, const std::string& file);
 

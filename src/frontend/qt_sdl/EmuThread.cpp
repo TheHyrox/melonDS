@@ -309,6 +309,8 @@ void EmuThread::run()
             else
             {
                 nlines = emuInstance->nds->RunFrame();
+                if (emuInstance->achievements)
+                    emuInstance->achievements->doFrame();
             }
 
             if (emuInstance->ndsSave)
@@ -428,6 +430,9 @@ void EmuThread::run()
         else
         {
             // paused
+            if (emuInstance->achievements)
+                emuInstance->achievements->idle();
+
             nframes = 0;
             lastTime = SDL_GetPerformanceCounter() * perfCountsSec;
             lastMeasureTime = lastTime;

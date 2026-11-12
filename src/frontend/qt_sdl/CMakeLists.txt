@@ -60,6 +60,9 @@ set(SOURCES_QT_SDL
 
     LANDialog.cpp
     NetplayDialog.cpp
+
+    RetroAchievements.h
+    RetroAchievements.cpp
 )
 
 option(USE_QT6 "Use Qt 6 instead of Qt 5" ON)
@@ -93,6 +96,30 @@ fix_interface_includes(PkgConfig::SDL2 PkgConfig::LibArchive)
 add_compile_definitions(ARCHIVE_SUPPORT_ENABLED)
 
 add_executable(melonDS ${SOURCES_QT_SDL})
+
+# RetroAchievements (rcheevos rc_client)
+set(RCHEEVOS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rcheevos")
+if (NOT EXISTS "${RCHEEVOS_DIR}/include/rc_client.h")
+    message(FATAL_ERROR "rcheevos submodule missing: run 'git submodule update --init --recursive'")
+endif()
+file(GLOB RCHEEVOS_SOURCES
+    "${RCHEEVOS_DIR}/src/rc_client.c"
+    "${RCHEEVOS_DIR}/src/rc_compat.c"
+    "${RCHEEVOS_DIR}/src/rc_util.c"
+    "${RCHEEVOS_DIR}/src/rc_version.c"
+    "${RCHEEVOS_DIR}/src/rapi/*.c"
+    "${RCHEEVOS_DIR}/src/rcheevos/*.c"
+    "${RCHEEVOS_DIR}/src/rhash/*.c")
+# Disc/zip hashing is not needed for cartridge-only DS support.
+list(FILTER RCHEEVOS_SOURCES EXCLUDE REGEX "(cdreader|hash_disc|hash_zip|hash_encrypted|aes)\\.c$")
+add_library(rcheevos STATIC ${RCHEEVOS_SOURCES})
+target_include_directories(rcheevos PUBLIC "${RCHEEVOS_DIR}/include")
+target_include_directories(rcheevos PRIVATE "${RCHEEVOS_DIR}/src" "${RCHEEVOS_DIR}/src/rapi" "${RCHEEVOS_DIR}/src/rcheevos" "${RCHEEVOS_DIR}/src/rhash")
+target_compile_definitions(rcheevos PUBLIC RC_CLIENT_SUPPORTS_HASH RC_HASH_NO_DISC RC_HASH_NO_ZIP RC_HASH_NO_ENCRYPTED)
+set_target_properties(rcheevos PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+target_link_libraries(rcheevos PUBLIC Threads::Threads)
+target_link_libraries(melonDS PRIVATE rcheevos)
 
 add_subdirectory("../../net"
     ${CMAKE_BINARY_DIR}/net)

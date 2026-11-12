@@ -1,0 +1,3 @@
+[submodule "src/frontend/qt_sdl/rcheevos"]
+	path = src/frontend/qt_sdl/rcheevos
+	url = https://github.com/RetroAchievements/rcheevos

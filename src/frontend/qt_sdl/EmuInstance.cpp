@@ -131,6 +131,8 @@ EmuInstance::EmuInstance(int inst) : deleting(false),
 
     net.RegisterInstance(instanceID);
 
+    achievements = std::make_unique<RetroAchievements>(this);
+
     emuThread = new EmuThread(this);
 
     numWindows = 0;
@@ -162,6 +164,8 @@ EmuInstance::~EmuInstance()
     emuThread->wait();
     delete emuThread;
     emuThread = nullptr;
+
+    achievements.reset();
 
     net.UnregisterInstance(instanceID);
 
@@ -717,6 +721,12 @@ bool EmuInstance::savestateExists(int slot)
 
 bool EmuInstance::loadState(const std::string& filename)
 {
+    if (achievements && achievements->hardcoreActive())
+    {
+        osdAddMessage(0, "Savestates are disabled in RetroAchievements Hardcore mode");
+        return false;
+    }
+
     Platform::FileHandle* file = Platform::OpenFile(filename, Platform::FileMode::Read);
     if (file == nullptr)
     { // If we couldn't open the state file...
@@ -842,7 +852,7 @@ void EmuInstance::loadCheats()
     // TODO: check for error (malformed cheat file, ...)
     cheatFile = std::make_unique<ARCodeFile>(filename);
 
-    if (cheatsOn)
+    if (cheatsOn && !(achievements && achievements->hardcoreActive()))
     {
         nds->AREngine.Cheats = cheatFile->GetCodes();
     }
@@ -1394,6 +1404,9 @@ bool EmuInstance::updateConsole() noexcept
 
 void EmuInstance::reset()
 {
+    if (achievements)
+        achievements->reset();
+
     updateConsole();
 
     if (consoleType == 1) ejectGBACart();
@@ -1923,6 +1936,9 @@ bool EmuInstance::loadROM(QStringList filepath, bool reset, QString& errorstr)
             .SRAMLength = savelen,
     };
 
+    if (achievements)
+        achievements->loadGame(filedata.get(), filelen, romname);
+
     auto cart = NDSCart::ParseROM(std::move(filedata), filelen, this, std::move(cartargs));
     if (!cart)
     {
@@ -1975,6 +1991,9 @@ bool EmuInstance::loadROM(QStringList filepath, bool reset, QString& errorstr)
 
 void EmuInstance::ejectCart()
 {
+    if (achievements)
+        achievements->unloadGame();
+
     ndsSave = nullptr;
 
     if (emuIsActive())

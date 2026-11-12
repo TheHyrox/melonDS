@@ -49,6 +49,11 @@ struct CommandLineOptions
     std::optional<int> consoleType;
     std::optional<bool> vsync;
     bool autoGamepad = true;
+
+    // RetroAchievements
+    std::optional<QString> raUser;
+    std::optional<QString> raToken;
+    bool raHardcore = true;
 };
 
 extern CommandLineOptions* ManageArgs(QApplication& melon);

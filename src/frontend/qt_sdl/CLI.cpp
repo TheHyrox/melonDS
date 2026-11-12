@@ -59,6 +59,10 @@ CommandLineOptions* ManageArgs(QApplication& melon)
     parser.addOption(QCommandLineOption("vsync", "Enable V-Sync (true/false/1/0)", "bool"));
     parser.addOption(QCommandLineOption("auto-gamepad", "Auto-configure connected SDL gamepad if unbound (true/false)", "bool", "true"));
 
+    parser.addOption(QCommandLineOption("ra-user", "RetroAchievements username", "name"));
+    parser.addOption(QCommandLineOption("ra-token", "RetroAchievements login token (not the password)", "token"));
+    parser.addOption(QCommandLineOption("ra-hardcore", "RetroAchievements hardcore mode: disables savestates and cheats (true/false)", "bool", "true"));
+
 #ifdef ARCHIVE_SUPPORT_ENABLED
     parser.addOption(QCommandLineOption({"a", "archive-file"}, "Specify file to load inside an archive given (NDS)", "rom"));
     parser.addOption(QCommandLineOption({"A", "archive-file-gba"}, "Specify file to load inside an archive given (GBA)", "rom"));
@@ -234,6 +238,16 @@ CommandLineOptions* ManageArgs(QApplication& melon)
     {
         if (auto b = parseBool(parser.value("auto-gamepad")))
             options->autoGamepad = *b;
+    }
+
+    if (parser.isSet("ra-user"))
+        options->raUser = parser.value("ra-user");
+    if (parser.isSet("ra-token"))
+        options->raToken = parser.value("ra-token");
+    if (parser.isSet("ra-hardcore"))
+    {
+        if (auto b = parseBool(parser.value("ra-hardcore")))
+            options->raHardcore = *b;
     }
 
     return options;

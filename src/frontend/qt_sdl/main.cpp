@@ -61,6 +61,7 @@
 #include "Net.h"
 
 #include "CLI.h"
+#include "RetroAchievements.h"
 
 #include "Net_PCap.h"
 #include "Net_Slirp.h"
@@ -367,6 +368,8 @@ int main(int argc, char** argv)
         QMessageBox::critical(nullptr,
                               "melonDS",
                               "Unable to write to config.\nPlease check the write permissions of the folder you placed melonDS in.");
+
+    RetroAchievementsConfig::Set(options->raUser.value_or(QString()), options->raToken.value_or(QString()), options->raHardcore);
 
     // Apply Nexus CLI overrides before creating the emulator instance
     {
