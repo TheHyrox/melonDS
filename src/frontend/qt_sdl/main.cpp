@@ -340,7 +340,7 @@ int main(int argc, char** argv)
     {
         printf("SDL couldn't init rumble\n");
     }
-    if (SDL_Init(SDL_INIT_JOYSTICK) < 0)
+    if (SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0)
     {
         printf("SDL couldn't init joystick\n");
     }
@@ -367,6 +367,39 @@ int main(int argc, char** argv)
         QMessageBox::critical(nullptr,
                               "melonDS",
                               "Unable to write to config.\nPlease check the write permissions of the folder you placed melonDS in.");
+
+    // Apply Nexus CLI overrides before creating the emulator instance
+    {
+        Config::Table globalCfg = Config::GetGlobalTable();
+        Config::Table localCfg = Config::GetLocalTable(0);
+        Config::Table winCfg = localCfg.GetTable("Window0");
+
+        if (options->screenLayout.has_value())
+            winCfg.SetInt("ScreenLayout", *options->screenLayout);
+        if (options->screenSizing.has_value())
+            winCfg.SetInt("ScreenSizing", *options->screenSizing);
+        if (options->screenRotation.has_value())
+            winCfg.SetInt("ScreenRotation", *options->screenRotation);
+        if (options->screenGap.has_value())
+            winCfg.SetInt("ScreenGap", *options->screenGap);
+        if (options->screenSwap.has_value())
+            winCfg.SetBool("ScreenSwap", *options->screenSwap);
+        if (options->integerScaling.has_value())
+            winCfg.SetBool("IntegerScaling", *options->integerScaling);
+        if (options->screenFilter.has_value())
+        {
+            winCfg.SetBool("ScreenFilter", *options->screenFilter);
+            globalCfg.SetBool("Screen.Filter", *options->screenFilter);
+        }
+        if (options->renderer3D.has_value())
+            globalCfg.SetInt("3D.Renderer", *options->renderer3D);
+        if (options->glScale.has_value())
+            globalCfg.SetInt("3D.GL.ScaleFactor", *options->glScale);
+        if (options->consoleType.has_value())
+            globalCfg.SetInt("Emu.ConsoleType", *options->consoleType);
+        if (options->vsync.has_value())
+            globalCfg.SetBool("Screen.VSync", *options->vsync);
+    }
 
     camStarted[0] = false;
     camStarted[1] = false;
@@ -419,6 +452,9 @@ int main(int argc, char** argv)
         if (memberSyntaxUsed) printf("Warning: use the a.zip|b.nds format at your own risk!\n");
 
         win->preloadROMs(dsfile, gbafile, options->boot);
+
+        if (options->windowScale.has_value() && !options->fullscreen)
+            win->setScreenSizeFactor(*options->windowScale);
 
         if (options->fullscreen)
             win->toggleFullscreen();

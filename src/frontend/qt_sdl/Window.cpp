@@ -2007,6 +2007,12 @@ void MainWindow::onInterfaceSettingsFinished(int res)
 void MainWindow::onChangeScreenSize()
 {
     int factor = ((QAction*)sender())->data().toInt();
+    setScreenSizeFactor(factor);
+}
+
+void MainWindow::setScreenSizeFactor(int factor)
+{
+    if (!panel) return;
     QSize diff = size() - panel->size();
     resize(panel->screenGetMinSize(factor) + diff);
 }

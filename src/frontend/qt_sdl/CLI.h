@@ -34,6 +34,21 @@ struct CommandLineOptions
     std::optional<QString> gbaRomArchivePath;
     bool fullscreen;
     bool boot;
+
+    // Nexus symbiotic CLI extensions
+    std::optional<int> screenLayout;
+    std::optional<int> screenSizing;
+    std::optional<int> screenRotation;
+    std::optional<int> screenGap;
+    std::optional<bool> screenSwap;
+    std::optional<bool> integerScaling;
+    std::optional<bool> screenFilter;
+    std::optional<int> windowScale;
+    std::optional<int> renderer3D;
+    std::optional<int> glScale;
+    std::optional<int> consoleType;
+    std::optional<bool> vsync;
+    bool autoGamepad = true;
 };
 
 extern CommandLineOptions* ManageArgs(QApplication& melon);

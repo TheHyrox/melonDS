@@ -60,6 +60,7 @@ public:
     void saveEnabled(bool enabled);
 
     void toggleFullscreen();
+    void setScreenSizeFactor(int factor);
 
     bool hasOpenGL() { return hasOGL; }
     GL::Context* getOGLContext();

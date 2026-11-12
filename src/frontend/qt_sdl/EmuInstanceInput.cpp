@@ -119,16 +119,91 @@ void EmuInstance::inputLoadConfig()
     Config::Table keycfg = localCfg.GetTable("Keyboard");
     Config::Table joycfg = localCfg.GetTable("Joystick");
 
+    bool allKeyUnbound = true;
+    bool allJoyUnbound = true;
+
     for (int i = 0; i < 12; i++)
     {
         keyMapping[i] = keycfg.GetInt(buttonNames[i]);
         joyMapping[i] = joycfg.GetInt(buttonNames[i]);
+        if (keyMapping[i] != -1) allKeyUnbound = false;
+        if (joyMapping[i] != -1) allJoyUnbound = false;
     }
 
     for (int i = 0; i < HK_MAX; i++)
     {
         hkKeyMapping[i] = keycfg.GetInt(hotkeyNames[i]);
         hkJoyMapping[i] = joycfg.GetInt(hotkeyNames[i]);
+    }
+
+    if (allKeyUnbound)
+    {
+        const int defaultKeys[12] = {
+            Qt::Key_X,         // A
+            Qt::Key_Z,         // B
+            Qt::Key_Backspace, // Select
+            Qt::Key_Return,    // Start
+            Qt::Key_Right,     // Right
+            Qt::Key_Left,      // Left
+            Qt::Key_Up,        // Up
+            Qt::Key_Down,      // Down
+            Qt::Key_W,         // R
+            Qt::Key_Q,         // L
+            Qt::Key_S,         // X
+            Qt::Key_A          // Y
+        };
+        for (int i = 0; i < 12; i++)
+        {
+            keyMapping[i] = defaultKeys[i];
+            keycfg.SetInt(buttonNames[i], defaultKeys[i]);
+        }
+        if (hkKeyMapping[HK_FastForward] == -1) {
+            hkKeyMapping[HK_FastForward] = Qt::Key_Tab;
+            keycfg.SetInt(hotkeyNames[HK_FastForward], Qt::Key_Tab);
+        }
+        if (hkKeyMapping[HK_SwapScreens] == -1) {
+            hkKeyMapping[HK_SwapScreens] = Qt::Key_Space;
+            keycfg.SetInt(hotkeyNames[HK_SwapScreens], Qt::Key_Space);
+        }
+        if (hkKeyMapping[HK_FullscreenToggle] == -1) {
+            hkKeyMapping[HK_FullscreenToggle] = Qt::Key_F11;
+            keycfg.SetInt(hotkeyNames[HK_FullscreenToggle], Qt::Key_F11);
+        }
+    }
+
+    if (allJoyUnbound)
+    {
+        const int defaultJoy[12] = {
+            1,          // A (East / Xbox B)
+            0,          // B (South / Xbox A)
+            6,          // Select (Back / View)
+            7,          // Start (Menu / Start)
+            0x00010102, // Right (Hat Right + Left Stick X+)
+            0x00110108, // Left (Hat Left + Left Stick X-)
+            0x01110101, // Up (Hat Up + Left Stick Y-)
+            0x01010104, // Down (Hat Down + Left Stick Y+)
+            5,          // R (RB)
+            4,          // L (LB)
+            3,          // X (North / Xbox Y)
+            2           // Y (West / Xbox X)
+        };
+        for (int i = 0; i < 12; i++)
+        {
+            joyMapping[i] = defaultJoy[i];
+            joycfg.SetInt(buttonNames[i], defaultJoy[i]);
+        }
+        if (hkJoyMapping[HK_SwapScreens] == -1) {
+            hkJoyMapping[HK_SwapScreens] = 9; // L3
+            joycfg.SetInt(hotkeyNames[HK_SwapScreens], 9);
+        }
+        if (hkJoyMapping[HK_SwapScreenEmphasis] == -1) {
+            hkJoyMapping[HK_SwapScreenEmphasis] = 10; // R3
+            joycfg.SetInt(hotkeyNames[HK_SwapScreenEmphasis], 10);
+        }
+        if (hkJoyMapping[HK_FastForward] == -1) {
+            hkJoyMapping[HK_FastForward] = 0x0521FFFF; // RT trigger
+            joycfg.SetInt(hotkeyNames[HK_FastForward], 0x0521FFFF);
+        }
     }
 
     setJoystick(localCfg.GetInt("JoystickID"));
@@ -443,6 +518,27 @@ void EmuInstance::inputProcess()
                 joyInputMask &= ~(1 << i);
     }
 
+    if (controller)
+    {
+        SDL_GameControllerUpdate();
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B))             joyInputMask &= ~(1 << 0);  // A
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A))             joyInputMask &= ~(1 << 1);  // B
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_BACK))          joyInputMask &= ~(1 << 2);  // Select
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START))         joyInputMask &= ~(1 << 3);  // Start
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ||
+            SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX) > 16384)     joyInputMask &= ~(1 << 4);  // Right
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT) ||
+            SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX) < -16384)    joyInputMask &= ~(1 << 5);  // Left
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP) ||
+            SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY) < -16384)    joyInputMask &= ~(1 << 6);  // Up
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN) ||
+            SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY) > 16384)     joyInputMask &= ~(1 << 7);  // Down
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) joyInputMask &= ~(1 << 8);  // R
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER))  joyInputMask &= ~(1 << 9);  // L
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_Y))             joyInputMask &= ~(1 << 10); // X
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_X))             joyInputMask &= ~(1 << 11); // Y
+    }
+
     inputMask = keyInputMask & joyInputMask;
 
     joyHotkeyMask = 0;
@@ -451,6 +547,15 @@ void EmuInstance::inputProcess()
         for (int i = 0; i < HK_MAX; i++)
             if (joystickButtonDown(hkJoyMapping[i]))
                 joyHotkeyMask |= (1 << i);
+    }
+    if (controller)
+    {
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_LEFTSTICK))
+            joyHotkeyMask |= (1 << HK_SwapScreens);
+        if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSTICK))
+            joyHotkeyMask |= (1 << HK_SwapScreenEmphasis);
+        if (SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16384)
+            joyHotkeyMask |= (1 << HK_FastForward);
     }
 
     hotkeyMask = keyHotkeyMask | joyHotkeyMask;

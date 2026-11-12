@@ -44,6 +44,21 @@ CommandLineOptions* ManageArgs(QApplication& melon)
     parser.addOption(QCommandLineOption({"b", "boot"}, "Whether to boot firmware on startup. Defaults to \"auto\" (boot if NDS rom given)", "auto/always/never", "auto"));
     parser.addOption(QCommandLineOption({"f", "fullscreen"}, "Start melonDS in fullscreen mode"));
 
+    // Nexus symbiotic CLI options
+    parser.addOption(QCommandLineOption({"l", "layout"}, "Screen layout: natural, vertical (top-bottom), horizontal (side-by-side), hybrid, single-top, single-bottom", "mode"));
+    parser.addOption(QCommandLineOption({"s", "sizing"}, "Screen sizing: even, emph-top, emph-bottom, auto, top-only, bottom-only", "mode"));
+    parser.addOption(QCommandLineOption({"r", "rotation"}, "Screen rotation in degrees: 0, 90, 180, 270", "deg"));
+    parser.addOption(QCommandLineOption({"g", "gap"}, "Gap between screens in pixels (0-500)", "px"));
+    parser.addOption(QCommandLineOption("swap-screens", "Swap top and bottom screens (true/false/1/0)", "bool"));
+    parser.addOption(QCommandLineOption("integer-scale", "Enable integer scaling (true/false/1/0)", "bool"));
+    parser.addOption(QCommandLineOption("filter", "Screen filtering: linear/true/1 or nearest/false/0", "mode"));
+    parser.addOption(QCommandLineOption("window-scale", "Window size multiplier (1-8)", "factor"));
+    parser.addOption(QCommandLineOption("renderer", "3D renderer: software (0) or opengl (1)", "mode"));
+    parser.addOption(QCommandLineOption("scale", "Internal 3D resolution scale factor (1-16, enables OpenGL if > 1)", "factor"));
+    parser.addOption(QCommandLineOption("console-type", "Console type: ds (0) or dsi (1)", "type"));
+    parser.addOption(QCommandLineOption("vsync", "Enable V-Sync (true/false/1/0)", "bool"));
+    parser.addOption(QCommandLineOption("auto-gamepad", "Auto-configure connected SDL gamepad if unbound (true/false)", "bool", "true"));
+
 #ifdef ARCHIVE_SUPPORT_ENABLED
     parser.addOption(QCommandLineOption({"a", "archive-file"}, "Specify file to load inside an archive given (NDS)", "rom"));
     parser.addOption(QCommandLineOption({"A", "archive-file-gba"}, "Specify file to load inside an archive given (GBA)", "rom"));
@@ -112,6 +127,114 @@ CommandLineOptions* ManageArgs(QApplication& melon)
         }
     }
 #endif
+
+    auto parseBool = [](const QString& v) -> std::optional<bool> {
+        QString l = v.trimmed().toLower();
+        if (l == "1" || l == "true" || l == "yes" || l == "on" || l == "linear") return true;
+        if (l == "0" || l == "false" || l == "no" || l == "off" || l == "nearest") return false;
+        return std::nullopt;
+    };
+
+    if (parser.isSet("layout"))
+    {
+        QString l = parser.value("layout").trimmed().toLower();
+        if (l == "natural" || l == "0") {
+            options->screenLayout = 0;
+        } else if (l == "vertical" || l == "top-bottom" || l == "1") {
+            options->screenLayout = 1;
+            options->screenSizing = 0;
+        } else if (l == "horizontal" || l == "side-by-side" || l == "2") {
+            options->screenLayout = 2;
+            options->screenSizing = 0;
+        } else if (l == "hybrid" || l == "3") {
+            options->screenLayout = 3;
+            options->screenSizing = 1;
+        } else if (l == "single-top" || l == "top-only") {
+            options->screenLayout = 0;
+            options->screenSizing = 4;
+        } else if (l == "single-bottom" || l == "bottom-only" || l == "bot-only") {
+            options->screenLayout = 0;
+            options->screenSizing = 5;
+        }
+    }
+
+    if (parser.isSet("sizing"))
+    {
+        QString s = parser.value("sizing").trimmed().toLower();
+        if (s == "even" || s == "0") options->screenSizing = 0;
+        else if (s == "emph-top" || s == "top" || s == "1") options->screenSizing = 1;
+        else if (s == "emph-bottom" || s == "emph-bot" || s == "bottom" || s == "2") options->screenSizing = 2;
+        else if (s == "auto" || s == "3") options->screenSizing = 3;
+        else if (s == "top-only" || s == "single-top" || s == "4") options->screenSizing = 4;
+        else if (s == "bottom-only" || s == "bot-only" || s == "single-bottom" || s == "5") options->screenSizing = 5;
+    }
+
+    if (parser.isSet("rotation"))
+    {
+        QString r = parser.value("rotation").trimmed().toLower();
+        if (r == "0" || r == "0deg") options->screenRotation = 0;
+        else if (r == "90" || r == "90deg" || r == "1") options->screenRotation = 1;
+        else if (r == "180" || r == "180deg" || r == "2") options->screenRotation = 2;
+        else if (r == "270" || r == "270deg" || r == "3") options->screenRotation = 3;
+    }
+
+    if (parser.isSet("gap"))
+    {
+        bool ok = false;
+        int gap = parser.value("gap").toInt(&ok);
+        if (ok && gap >= 0 && gap <= 500) options->screenGap = gap;
+    }
+
+    if (parser.isSet("swap-screens"))
+        options->screenSwap = parseBool(parser.value("swap-screens"));
+
+    if (parser.isSet("integer-scale"))
+        options->integerScaling = parseBool(parser.value("integer-scale"));
+
+    if (parser.isSet("filter"))
+        options->screenFilter = parseBool(parser.value("filter"));
+
+    if (parser.isSet("window-scale"))
+    {
+        bool ok = false;
+        int ws = parser.value("window-scale").toInt(&ok);
+        if (ok && ws >= 1 && ws <= 8) options->windowScale = ws;
+    }
+
+    if (parser.isSet("renderer"))
+    {
+        QString r = parser.value("renderer").trimmed().toLower();
+        if (r == "software" || r == "soft" || r == "0") options->renderer3D = 0;
+        else if (r == "opengl" || r == "gl" || r == "1") options->renderer3D = 1;
+    }
+
+    if (parser.isSet("scale"))
+    {
+        bool ok = false;
+        int sc = parser.value("scale").toInt(&ok);
+        if (ok && sc >= 1 && sc <= 16)
+        {
+            options->glScale = sc;
+            if (sc > 1 && !options->renderer3D.has_value())
+                options->renderer3D = 1;
+        }
+    }
+
+    if (parser.isSet("console-type"))
+    {
+        QString c = parser.value("console-type").trimmed().toLower();
+        if (c == "ds" || c == "0") options->consoleType = 0;
+        else if (c == "dsi" || c == "1") options->consoleType = 1;
+    }
+
+    if (parser.isSet("vsync"))
+        options->vsync = parseBool(parser.value("vsync"));
+
+    if (parser.isSet("auto-gamepad"))
+    {
+        if (auto b = parseBool(parser.value("auto-gamepad")))
+            options->autoGamepad = *b;
+    }
 
     return options;
 }
