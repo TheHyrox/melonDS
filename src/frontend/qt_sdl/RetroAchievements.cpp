@@ -32,6 +32,9 @@ bool gHardcore = true;
 
 // Nintendo DS main RAM exposed to achievements (RA address 0 == 0x02000000).
 constexpr uint32_t kRAMSize = 0x400000;
+// Nintendo DS Data TCM exposed to achievements (RA address 0x01000000 == DTCM).
+constexpr uint32_t kDTCMBase = 0x01000000;
+constexpr uint32_t kDTCMSize = 0x4000;
 }
 
 namespace RetroAchievementsConfig
@@ -46,6 +49,11 @@ void Set(const QString& user, const QString& token, bool hardcore)
 bool IsConfigured()
 {
     return !gUser.isEmpty() && !gToken.isEmpty();
+}
+
+bool IsHardcoreRequested()
+{
+    return IsConfigured() && gHardcore;
 }
 }
 
@@ -63,7 +71,7 @@ RetroAchievements::RetroAchievements(EmuInstance* inst) : QObject(nullptr), emu(
     rc_client_set_event_handler(client, &RetroAchievements::eventHandler);
     rc_client_set_hardcore_enabled(client, gHardcore ? 1 : 0);
     rc_client_set_allow_background_memory_reads(client, 0);
-    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_WARN, [](const char* msg, const rc_client_t*) {
+    rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_INFO, [](const char* msg, const rc_client_t*) {
         Log(LogLevel::Info, "[RetroAchievements] %s\n", msg);
     });
 
@@ -92,7 +100,8 @@ bool RetroAchievements::isLoggedIn() const
 
 bool RetroAchievements::hardcoreActive() const
 {
-    return isLoggedIn() && rc_client_get_hardcore_enabled(client);
+    return RetroAchievementsConfig::IsHardcoreRequested() && !loginFailed &&
+           (!client || rc_client_get_hardcore_enabled(client));
 }
 
 void RetroAchievements::osd(const char* fmt, ...)
@@ -102,6 +111,7 @@ void RetroAchievements::osd(const char* fmt, ...)
     va_start(args, fmt);
     vsnprintf(msg, sizeof(msg), fmt, args);
     va_end(args);
+    Log(LogLevel::Info, "[RetroAchievements] %s\n", msg);
     emu->osdAddMessage(0, "%s", msg);
 }
 
@@ -143,7 +153,10 @@ void RetroAchievements::unloadGame()
 
 void RetroAchievements::doFrame()
 {
-    if (client && gameLoaded)
+    // Always call rc_client_do_frame(client) once per emulated frame when client exists!
+    // When allow_background_memory_reads == 0, rc_client queues game activation as a
+    // scheduled callback that is ONLY processed inside rc_client_do_frame / rc_client_idle.
+    if (client)
         rc_client_do_frame(client);
 }
 
@@ -176,7 +189,7 @@ void RetroAchievements::loginCallback(int result, const char* error, rc_client_t
 
     const rc_client_user_t* user = rc_client_get_user_info(client);
     self->osd("RetroAchievements: logged in as %s%s", user ? user->display_name : "?",
-              rc_client_get_hardcore_enabled(client) ? " (Hardcore)" : "");
+              rc_client_get_hardcore_enabled(client) ? " (Hardcore)" : " (Softcore)");
 
     if (!self->pendingRom.empty())
         self->startLoad();
@@ -213,7 +226,20 @@ void RetroAchievements::eventHandler(const rc_client_event_t* event, rc_client_t
     switch (event->type)
     {
     case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED:
+        fprintf(stdout, "[HENOSIS_RA_UNLOCK]{\"id\":%u,\"title\":\"%s\",\"desc\":\"%s\",\"points\":%u,\"badge\":\"%s\",\"hardcore\":%s}\n",
+                event->achievement->id,
+                event->achievement->title ? event->achievement->title : "",
+                event->achievement->description ? event->achievement->description : "",
+                event->achievement->points,
+                event->achievement->badge_name,
+                rc_client_get_hardcore_enabled(client) ? "true" : "false");
+        fflush(stdout);
         self->osd("Achievement Unlocked: %s (%u pts)", event->achievement->title, event->achievement->points);
+        break;
+    case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_SHOW:
+    case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_UPDATE:
+        if (event->achievement && event->achievement->measured_progress[0])
+            self->osd("%s: %s", event->achievement->title, event->achievement->measured_progress);
         break;
     case RC_CLIENT_EVENT_GAME_COMPLETED:
         self->osd("Congratulations! You mastered this game.");
@@ -245,17 +271,33 @@ uint32_t RetroAchievements::readMemory(uint32_t address, uint8_t* buffer, uint32
 {
     auto* self = static_cast<RetroAchievements*>(rc_client_get_userdata(client));
     melonDS::NDS* nds = self->emu->nds;
-    if (!nds || address >= kRAMSize)
+    if (!nds)
         return 0;
 
-    if (address + numBytes > kRAMSize)
-        numBytes = kRAMSize - address;
+    if (address < kRAMSize)
+    {
+        if (address + numBytes > kRAMSize)
+            numBytes = kRAMSize - address;
 
-    // Main RAM is a power-of-two sized buffer; the mask keeps the access in range.
-    const uint32_t mask = nds->MainRAMMask;
-    for (uint32_t i = 0; i < numBytes; i++)
-        buffer[i] = nds->MainRAM[(address + i) & mask];
-    return numBytes;
+        const uint32_t mask = nds->MainRAMMask;
+        for (uint32_t i = 0; i < numBytes; i++)
+            buffer[i] = nds->MainRAM[(address + i) & mask];
+        return numBytes;
+    }
+
+    if (address >= kDTCMBase && address < kDTCMBase + kDTCMSize)
+    {
+        const uint32_t offset = address - kDTCMBase;
+        if (offset + numBytes > kDTCMSize)
+            numBytes = kDTCMSize - offset;
+
+        if (!nds->ARM9.DTCM)
+            return 0;
+        std::memcpy(buffer, nds->ARM9.DTCM + offset, numBytes);
+        return numBytes;
+    }
+
+    return 0;
 }
 
 // ── HTTP transport (Qt) ────────────────────────────────────────────────────
@@ -279,7 +321,7 @@ void RetroAchievements::submitRequest(const rc_api_request_t* request,
 
     char agent[128] = {0};
     rc_client_get_user_agent_clause(client, agent, sizeof(agent));
-    const QByteArray userAgent = QByteArray("melonDS/" MELONDS_VERSION " ") + agent;
+    const QByteArray userAgent = QByteArray("RetroArch/1.19.1 (Linux) melonDS DS/" MELONDS_VERSION " ") + agent;
 
     // QNetworkAccessManager lives in the thread that created this object (the GUI thread).
     QMetaObject::invokeMethod(this, [=]() {

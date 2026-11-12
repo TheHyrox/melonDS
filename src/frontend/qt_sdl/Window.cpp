@@ -1298,10 +1298,12 @@ void MainWindow::updateCartInserted(bool gba)
             win->actCurrentCart->setText(label);
             win->actEjectCart->setEnabled(inserted);
             win->actImportSavefile->setEnabled(inserted);
-            win->actEnableCheats->setEnabled(inserted);
-            win->actSetupCheats->setEnabled(inserted);
+            bool hc = emuInstance->hardcoreActive();
+            win->actEnableCheats->setEnabled(inserted && !hc);
+            win->actSetupCheats->setEnabled(inserted && !hc);
+            if (hc) win->actEnableCheats->setChecked(false);
             win->actROMInfo->setEnabled(inserted);
-            win->actRAMInfo->setEnabled(inserted);
+            win->actRAMInfo->setEnabled(inserted && !hc);
         });
     }
 }
@@ -1516,6 +1518,11 @@ void MainWindow::onEjectGBACart()
 
 void MainWindow::onSaveState()
 {
+    if (emuInstance->hardcoreActive())
+    {
+        emuInstance->osdAddMessage(0, "Savestates are disabled in RetroAchievements Hardcore mode");
+        return;
+    }
     int slot = ((QAction*)sender())->data().toInt();
 
     QString filename;
@@ -1551,6 +1558,11 @@ void MainWindow::onSaveState()
 
 void MainWindow::onLoadState()
 {
+    if (emuInstance->hardcoreActive())
+    {
+        emuInstance->osdAddMessage(0, "Savestates are disabled in RetroAchievements Hardcore mode");
+        return;
+    }
     int slot = ((QAction*)sender())->data().toInt();
 
     QString filename;
@@ -1594,6 +1606,7 @@ void MainWindow::onLoadState()
 
 void MainWindow::onUndoStateLoad()
 {
+    if (emuInstance->hardcoreActive()) return;
     emuThread->undoStateLoad();
 
     emuInstance->osdAddMessage(0, "State load undone");
@@ -1671,6 +1684,7 @@ void MainWindow::onStop()
 
 void MainWindow::onFrameStep()
 {
+    if (emuInstance->hardcoreActive()) return;
     if (!emuThread->emuIsActive()) return;
 
     emuThread->emuFrameStep();
@@ -1697,6 +1711,11 @@ void MainWindow::onOpenPowerManagement()
 
 void MainWindow::onEnableCheats(bool checked)
 {
+    if (emuInstance->hardcoreActive())
+    {
+        actEnableCheats->setChecked(false);
+        return;
+    }
     localCfg.SetBool("EnableCheats", checked);
     emuThread->enableCheats(checked);
 
@@ -1708,6 +1727,7 @@ void MainWindow::onEnableCheats(bool checked)
 
 void MainWindow::onSetupCheats()
 {
+    if (emuInstance->hardcoreActive()) return;
     emuThread->emuPause();
 
     CheatsDialog* dlg = CheatsDialog::openDlg(this);
@@ -1728,6 +1748,7 @@ void MainWindow::onROMInfo()
 
 void MainWindow::onRAMInfo()
 {
+    if (emuInstance->hardcoreActive()) return;
     RAMInfoDialog* dlg = RAMInfoDialog::openDlg(this);
 }
 
@@ -2209,20 +2230,28 @@ void MainWindow::onEmuStart()
 {
     if (!hasMenu) return;
 
+    bool hc = emuInstance->hardcoreActive();
     for (int i = 1; i < 9; i++)
     {
-        actSaveState[i]->setEnabled(true);
-        actLoadState[i]->setEnabled(emuInstance->savestateExists(i));
+        actSaveState[i]->setEnabled(!hc);
+        actLoadState[i]->setEnabled(!hc && emuInstance->savestateExists(i));
     }
-    actSaveState[0]->setEnabled(true);
-    actLoadState[0]->setEnabled(true);
+    actSaveState[0]->setEnabled(!hc);
+    actLoadState[0]->setEnabled(!hc);
     actUndoStateLoad->setEnabled(false);
 
     actPause->setEnabled(true);
     actPause->setChecked(false);
     actReset->setEnabled(true);
     actStop->setEnabled(true);
-    actFrameStep->setEnabled(true);
+    actFrameStep->setEnabled(!hc);
+    if (hc)
+    {
+        actEnableCheats->setEnabled(false);
+        actEnableCheats->setChecked(false);
+        actSetupCheats->setEnabled(false);
+        actRAMInfo->setEnabled(false);
+    }
 
     //actDateTime->setEnabled(false);
     actPowerManagement->setEnabled(true);

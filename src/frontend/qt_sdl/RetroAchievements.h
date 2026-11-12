@@ -27,6 +27,7 @@ namespace RetroAchievementsConfig
 // Set once from the command line, before any EmuInstance is created.
 void Set(const QString& user, const QString& token, bool hardcore);
 bool IsConfigured();
+bool IsHardcoreRequested();
 }
 
 class RetroAchievements : public QObject
@@ -39,7 +40,7 @@ public:
 
     // True when a user is logged in (credentials were provided and accepted).
     bool isLoggedIn() const;
-    // True when hardcore rules (no savestates / cheats) currently apply.
+    // True when hardcore rules (no savestates / cheats / slowmo / frame step) currently apply.
     bool hardcoreActive() const;
 
     // Identify and load the achievement set for a DS ROM (called from the emu/main thread

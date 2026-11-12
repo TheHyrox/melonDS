@@ -161,7 +161,7 @@ void EmuThread::run()
 
         if (emuInstance->hotkeyPressed(HK_Pause)) emuTogglePause();
         if (emuInstance->hotkeyPressed(HK_Reset)) emuReset();
-        if (emuInstance->hotkeyPressed(HK_FrameStep)) emuFrameStep();
+        if (emuInstance->hotkeyPressed(HK_FrameStep) && !emuInstance->hardcoreActive()) emuFrameStep();
 
         if (emuInstance->hotkeyPressed(HK_FullscreenToggle)) emit windowFullscreenToggle();
 
@@ -336,12 +336,12 @@ void EmuThread::run()
             }
             
             if (emuInstance->hotkeyPressed(HK_FastForwardToggle)) emuInstance->fastForwardToggled = !emuInstance->fastForwardToggled;
-            if (emuInstance->hotkeyPressed(HK_SlowMoToggle)) emuInstance->slowmoToggled = !emuInstance->slowmoToggled;
+            if (!emuInstance->hardcoreActive() && emuInstance->hotkeyPressed(HK_SlowMoToggle)) emuInstance->slowmoToggled = !emuInstance->slowmoToggled;
 
             if (emuInstance->hotkeyPressed(HK_AudioMuteToggle)) emuInstance->toggleAudioMute();
 
             bool enablefastforward = emuInstance->hotkeyDown(HK_FastForward) | emuInstance->fastForwardToggled;
-            bool enableslowmo = emuInstance->hotkeyDown(HK_SlowMo) | emuInstance->slowmoToggled;
+            bool enableslowmo = !emuInstance->hardcoreActive() && (emuInstance->hotkeyDown(HK_SlowMo) | emuInstance->slowmoToggled);
 
             if (useOpenGL)
             {

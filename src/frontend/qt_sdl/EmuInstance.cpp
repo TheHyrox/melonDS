@@ -784,6 +784,12 @@ bool EmuInstance::loadState(const std::string& filename)
 
 bool EmuInstance::saveState(const std::string& filename)
 {
+    if (hardcoreActive())
+    {
+        osdAddMessage(0, "Savestates are disabled in RetroAchievements Hardcore mode");
+        return false;
+    }
+
     Platform::FileHandle* file = Platform::OpenFile(filename, Platform::FileMode::Write);
 
     if (file == nullptr)
@@ -825,6 +831,7 @@ bool EmuInstance::saveState(const std::string& filename)
 
 void EmuInstance::undoStateLoad()
 {
+    if (hardcoreActive()) return;
     if (!savestateLoaded || !backupState) return;
 
     // Rewind the backup state and put it in load mode
@@ -1163,8 +1170,13 @@ std::optional<FATStorage> EmuInstance::loadSDCard(const string& key) noexcept
 
 void EmuInstance::enableCheats(bool enable)
 {
+    if (hardcoreActive() && enable)
+    {
+        osdAddMessage(0, "Cheats are disabled in RetroAchievements Hardcore mode");
+        return;
+    }
     cheatsOn = enable;
-    if (cheatsOn && cheatFile)
+    if (cheatsOn && cheatFile && !hardcoreActive())
         nds->AREngine.Cheats = cheatFile->GetCodes();
     else
         nds->AREngine.Cheats.clear();

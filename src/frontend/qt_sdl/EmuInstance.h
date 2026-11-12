@@ -185,6 +185,7 @@ private:
     std::string getEffectiveFirmwareSavePath();
     void initFirmwareSaveManager() noexcept;
     std::string getSavestateName(int slot);
+    bool hardcoreActive() const { return achievements && achievements->hardcoreActive(); }
     bool savestateExists(int slot);
     bool loadState(const std::string& filename);
     bool saveState(const std::string& filename);
